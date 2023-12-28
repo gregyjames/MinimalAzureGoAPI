@@ -2,10 +2,12 @@ name: docker_build_push_acr
 
 on:
   push:
-    branches: [ "main" ]
+    tags:
+      - "v*.*.*"
   pull_request:
-    branches: [ "main" ]
-    
+    branches:
+      - "main"
+      
 jobs:
   docker_build_push_acr:
     name: 'Docker Build and Push to ACR'
@@ -21,7 +23,18 @@ jobs:
     # Checkout the repository to the GitHub Actions runner
     - name: Checkout
       uses: actions/checkout@v4
-  
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        # list of Docker images to use as base name for tags
+        images: |
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ secrets.REGISTRY_NAME }}         
+        tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+        
     - name: 'Docker Login'
       uses: azure/docker-login@v1
       with:
@@ -32,5 +45,6 @@ jobs:
     - name: Build the frontend image and push it to ACR
       uses: docker/build-push-action@v5
       with:
-        push: true
-        tags: ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ secrets.REGISTRY_NAME }}:${{ github.sha }}
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
